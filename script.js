@@ -86,5 +86,41 @@ const displayMovements =function(movements){
       });
 };
 displayMovements(account1.movements);
+const calcDisplayBalance=function(movements){
+    const balance= movements.reduce(function(acc,mov){
+      return acc+mov;
+    },0);
+    labelBalance.textContent=`${balance} EUR`;
+  
+};
+
+calcDisplayBalance(account1.movements);
+const createUsernames=function(accs)
+{
+  accs.forEach(function(acc){
+    acc.userName=acc.owner.toLowerCase().split(' ').map(name=>name[0]).join('');
+  });
+};
+const withdrawls=account1.movements.filter(function(mov){
+  return mov<0;
+});
+const calcDisplaySummary=function(account){
+  const sumIn=account.movements
+  .filter(mov=>mov>0)
+  .reduce((acc,deposit)=>acc+deposit,0);
+  labelSumIn.textContent=`${sumIn}€`;
+  const sumOut=movements
+  .filter(mov=>mov<0)
+  .reduce((acc,withdraw)=>acc+withdraw,0);
+  labelSumOut.textContent=`${Math.abs(sumOut)}€`;
+
+  const interest=movements
+  .filter(mov=>mov>0)
+  .map(deposit=>(deposit*account.interestRate)/100)
+  .filter(int=>int>=1)
+  .reduce((acc,int)=>acc+int,0);
+  labelSumInterest.textContent=`${interest}€`;
+}
+calcDisplaySummary(account1.movements);
 
 /////////////////////////////////////////////////

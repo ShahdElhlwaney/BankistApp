@@ -94,24 +94,28 @@ const currencies = new Map([
   ['EUR', 'Euro'],
   ['GBP', 'Pound sterling'],
 ]);
-
+const formateMovementDate=function(date){
+  const calcDayPassed=(date1,date2)=>Math.round(Math.abs(date2-date1)/(1000*60*60*24));
+  const dayPassed=calcDayPassed(new Date(),date);
+  console.log(dayPassed);
+  if(dayPassed===0)return 'Today';
+  if(dayPassed===1)return 'Yesterday';
+  if(dayPassed<=7)return `${dayPassed} days ago`;
+  const year=date.getFullYear();
+  const month=`${date.getMonth()+1}`.padStart(2,0);
+  const day=`${date.getDate()}`.padStart(2,0);
+  return `${day}/${month}/${year}`;
+}
 const displayMovements =function(acc,sort=false){
     containerMovements.innerHTML='';
     const movs=sort? acc.movements.slice().sort((a,b)=>a-b):acc.movements;
     movs.forEach(function (mov,i){
-        const date=new Date(acc.movementsDates[i]);
-        const year=date.getFullYear();
-        const month=`${date.getMonth()}`.padStart(2,0);
-        const hours=`${date.getHours()}`;
-        const minutes=`${date.getMinutes()}`;
-        const day=`${date.getDate()}`.padStart(2,0);
-        
-        const displayDate=`${day}/${month}/${year}, ${hours}:${minutes}`;
+       const date= formateMovementDate(new Date(acc.movementsDates[i]));
         const type=mov>0?'deposit':'withdrawal';
         const html=`
           <div class="movements__row">
               <div class="movements__type movements__type--${type}">${i+1} ${type}</div>
-              <div class="movements__date">${displayDate}</div>
+              <div class="movements__date">${date}</div>
               <div class="movements__value">${mov.toFixed(2)}</div>
           </div>
         `;

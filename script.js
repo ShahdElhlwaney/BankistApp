@@ -94,44 +94,46 @@ const currencies = new Map([
   ['EUR', 'Euro'],
   ['GBP', 'Pound sterling'],
 ]);
-const formateMovementDate=function(date){
+const formateMovementDate=function(date,locale){
   const calcDayPassed=(date1,date2)=>Math.round(Math.abs(date2-date1)/(1000*60*60*24));
   const dayPassed=calcDayPassed(new Date(),date);
   console.log(dayPassed);
   if(dayPassed===0)return 'Today';
   if(dayPassed===1)return 'Yesterday';
   if(dayPassed<=7)return `${dayPassed} days ago`;
-  const year=date.getFullYear();
-  const month=`${date.getMonth()+1}`.padStart(2,0);
-  const day=`${date.getDate()}`.padStart(2,0);
-  return `${day}/${month}/${year}`;
+  return new Intl.DateTimeFormat(locale).format(date);
+}
+const formateCurrency=function(value,locale,currency){
+  return new Intl.NumberFormat(locale,
+    {
+      style:'currency',
+      currency:currency
+    }).format(value);
 }
 const displayMovements =function(acc,sort=false){
     containerMovements.innerHTML='';
     const movs=sort? acc.movements.slice().sort((a,b)=>a-b):acc.movements;
     movs.forEach(function (mov,i){
-       const date= formateMovementDate(new Date(acc.movementsDates[i]));
+       const date= formateMovementDate(new Date(acc.movementsDates[i]),currentAccount.locale);
         const type=mov>0?'deposit':'withdrawal';
         const html=`
           <div class="movements__row">
               <div class="movements__type movements__type--${type}">${i+1} ${type}</div>
               <div class="movements__date">${date}</div>
-              <div class="movements__value">${mov.toFixed(2)}</div>
+              <div class="movements__value">${formateCurrency(mov.toFixed(2),acc.locale,acc.currency)}</div>
           </div>
         `;
         containerMovements.insertAdjacentHTML('afterbegin',html);
       });
 };
-// displayMovements(account1.movements);
 const calcDisplayBalance=function(acc){
      acc.balance= acc.movements.reduce(function(acc,mov){
       return acc+mov;
     },0);
-    labelBalance.textContent=`${acc.balance.toFixed(2)} EUR`;
+    labelBalance.textContent=formateCurrency(acc.balance.toFixed(2),acc.locale,acc.currency); 
   
 };
 
-// calcDisplayBalance(account1.movements);
 const createUsernames=function(accs)
 {
   accs.forEach(function(acc){
@@ -147,25 +149,23 @@ const updateUI=function(acc){
 const withdrawls=account1.movements.filter(function(mov){
   return mov<0;
 });
-const calcDisplaySummary=function(account){
-  const sumIn=account.movements
+const calcDisplaySummary=function(acc){
+  const sumIn=acc.movements
   .filter(mov=>mov>0)
   .reduce((acc,deposit)=>acc+deposit,0);
-  labelSumIn.textContent=`${sumIn.toFixed(2)}€`;
-  const sumOut=account.movements
+  labelSumIn.textContent=formateCurrency(sumIn.toFixed(2),acc.locale,acc.currency);
+  const sumOut=acc.movements
   .filter(mov=>mov<0)
   .reduce((acc,withdraw)=>acc+withdraw,0);
-  labelSumOut.textContent=`${Math.abs(sumOut).toFixed(2)}€`;
-
-  const interest=account.movements
+  labelSumOut.textContent=formateCurrency(Math.abs(sumOut).toFixed(2),acc.locale,acc.currency);
+  const interest=acc.movements
   .filter(mov=>mov>0)
-  .map(deposit=>(deposit*account.interestRate)/100)
+  .map(deposit=>(deposit*acc.interestRate)/100)
   .filter(int=>int>=1)
   .reduce((acc,int)=>acc+int,0);
-  labelSumInterest.textContent=`${interest.toFixed(2)}€`;
+  labelSumInterest.textContent=formateCurrency(interest.toFixed(2),acc.locale,acc.currency);
 }
-// calcDisplaySummary(account1.movements);
-let currentAccount;
+let currentAccount,timer;
 btnLogin.addEventListener('click',function(e){
   e.preventDefault();
   currentAccount=accounts?.find(acc=>acc.userName===inputLoginUsername.value&&acc.pin===+inputLoginPin.value);
@@ -173,15 +173,21 @@ btnLogin.addEventListener('click',function(e){
   if(currentAccount!==undefined)
   {
     labelWelcome.textContent=`Welcome,${currentAccount.owner.split(' ').at(0)}`;
-    const date=new Date();
-    const year=date.getFullYear();
-    const month=`${date.getMonth()}`.padStart(2,0);
-    const day=`${date.getDate()}`.padStart(2,0);
-    const displayDate=`${day}/${month}/${year}`;
-    labelDate.textContent=displayDate;
+    const options={
+      year:'numeric',
+      month:'numeric',
+      day:'numeric',
+      hour:'numeric',
+      minute:'numeric'
+    };
+    const now=new Date();
+    const date=new Intl.DateTimeFormat(currentAccount.locale,options).format(now);
+    labelDate.textContent=date;
     containerApp.style.opacity=100;
     inputLoginUsername.value=inputLoginPin.value='';
     inputLoginPin.blur();
+    if(timer)clearInterval(timer);
+    timer=startLogoutTimer();
     updateUI(currentAccount);
   }
 });
@@ -199,6 +205,8 @@ btnTransfer.addEventListener('click',function(e){
       inputTransferTo.value=inputTransferAmount.value='';
       inputTransferAmount.blur();
       updateUI(currentAccount);
+      clearInterval(timer);
+      timer=startLogoutTimer();
      }
 });
 btnClose.addEventListener('click',function(e){
@@ -216,16 +224,40 @@ btnLoan.addEventListener('click',function(e){
   const amount=Math.floor(inputLoanAmount.value);
   if(amount>0 && currentAccount.movements.some(mov=>mov>=amount*0.1))
   {
-    currentAccount.movements.push(amount);
-    currentAccount.movementsDates.push(new Date().toISOString());
-    updateUI(currentAccount);
+    setTimeout(
+      function(){
+        currentAccount.movements.push(amount);
+        currentAccount.movementsDates.push(new Date().toISOString());
+        updateUI(currentAccount);
+      },2500
+    ); 
   }
   inputLoanAmount.value='';
+  clearInterval(timer);
+  timer=startLogoutTimer();
 });
 let sorted=false;
 btnSort.addEventListener('click',function(e){
   displayMovements(currentAccount,!sorted);
   sorted=!sorted;
 });
+const startLogoutTimer=function(){
+  const tick=function(){
+        const min=String(Math.trunc(time/60) ).padStart(2,0);
+        const sec=time%60;
+        if(time===0)logout();
+        time--;
+        labelTimer.textContent=`${min}:${sec}`;      
+  }
+  let time=100;
+  tick();
+  timer=setInterval(tick,1000);
+  return timer;
+}
+const logout=function(){
+  clearInterval(timer);
+  labelWelcome.textContent='Login to get started into the application';
+  containerApp.style.opacity=0;
+}
 
 //////////////////////////////////////////////////////
